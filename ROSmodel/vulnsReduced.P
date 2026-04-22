@@ -1,0 +1,132 @@
+/******************************************************
+ * vulns.P
+ *
+ * FACTS ONLY
+ * - concrete ROS instance
+ * - concrete retained exploit families
+ * - single final goal
+ ******************************************************/
+
+% ====================================================
+% A) System / app / goal
+% ====================================================
+
+system(f1tenth).
+rosApplication(f1tenth).
+
+attackGoal(systemCompromised(f1tenth)).
+
+% ====================================================
+% B) Nodes
+% ====================================================
+
+rosNode(bridge).
+rosNode(map_server).
+rosNode(rviz).
+
+nodeAffectsSystem(bridge,f1tenth).
+nodeAffectsSystem(map_server,f1tenth).
+
+% ====================================================
+% C) Host foothold / access chain (realistic attacker path)
+% ====================================================
+
+% Initial foothold (e.g., compromised engineering workstation)
+attackerEntryPoint(engineering_ws).
+
+% Lateral movement path to robot host
+hostReachable(engineering_ws,robot_host).
+
+% Robot host context
+hostRunsRos(robot_host).
+hostStoresRosCredentials(robot_host).
+hostHasNetAdmin(robot_host).
+
+% ROS node hosting map
+nodeHostedOn(bridge,robot_host).
+nodeHostedOn(map_server,robot_host).
+nodeHostedOn(rviz,robot_host).
+
+% ====================================================
+% D) DDS / network exposure
+% ====================================================
+
+netAccess(bridge,rtps,7400).
+netAccess(map_server,rtps,7400).
+netAccess(rviz,rtps,7400).
+
+ddsSecurityDisabled(bridge).
+ddsSecurityDisabled(map_server).
+ddsSecurityDisabled(rviz).
+
+% ====================================================
+% E) Topics
+% ====================================================
+
+rosTopic('/scan').
+rosTopic('/drive').
+
+topicBelongsToSystem('/scan',f1tenth).
+topicBelongsToSystem('/drive',f1tenth).
+
+sensorTopic('/scan').
+controlTopic('/drive').
+sensitiveTopic('/scan').
+
+topicAcceptsExternalPublish('/scan').
+topicAcceptsExternalPublish('/drive').
+
+% ====================================================
+% F) Topic endpoints
+% ====================================================
+
+topicPublisher('/scan',bridge).
+allowedPublisher('/scan',bridge).
+pubType(bridge,'/scan','sensor_msgs/msg/LaserScan').
+
+topicSubscriber('/scan',rviz).
+allowedSubscriber('/scan',rviz).
+subType(rviz,'/scan','sensor_msgs/msg/LaserScan').
+
+topicType('/scan','sensor_msgs/msg/LaserScan').
+
+topicSubscriber('/drive',bridge).
+allowedSubscriber('/drive',bridge).
+subType(bridge,'/drive','ackermann_msgs/msg/AckermannDriveStamped').
+
+topicType('/drive','ackermann_msgs/msg/AckermannDriveStamped').
+
+% ====================================================
+% G) Services
+% ====================================================
+
+serviceServer('/bridge/set_parameters',bridge).
+serviceType('/bridge/set_parameters','rcl_interfaces/srv/SetParameters').
+parameterService('/bridge/set_parameters').
+
+serviceServer('/map_server/change_state',map_server).
+serviceType('/map_server/change_state','lifecycle_msgs/srv/ChangeState').
+lifecycleService('/map_server/change_state').
+
+% ====================================================
+% H) Program mapping / optional code-compromise facts
+% ====================================================
+
+programImplementsNode(f1tenth_bridge,bridge).
+
+% Kept only as optional data for code-compromise experiments.
+% Current runtime attack chain does not require source-code modification.
+programPathDisclosed(f1tenth_bridge).
+programFileWritable(f1tenth_bridge).
+
+% ====================================================
+% I) Retained exploit families
+% ====================================================
+
+processesArray(f1tenth_bridge,'/scan').
+vulExists('GHSA-5545-2q6w-2gh6',f1tenth_bridge).
+vulProperty('GHSA-5545-2q6w-2gh6',remoteExploit,dos).
+
+handlesTLS(f1tenth_bridge).
+vulExists('crypto_infoleak_family',f1tenth_bridge).
+vulProperty('crypto_infoleak_family',remoteExploit,infoLeak).
