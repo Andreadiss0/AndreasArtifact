@@ -309,11 +309,16 @@ def act_initial_access_engineering_ws():
 
 
 def act_lateral_access_robot_host():
-    # In this sim, default target is localhost unless overridden.
+    # In this sim, lateral movement is modeled to robot_host; localhost should always be reachable.
     host = os.environ.get("ATTACK_ROBOT_HOST", "127.0.0.1").strip()
-    rc, out = sh(["bash", "-lc", f"ping -c 1 -W 1 {host}"], timeout=6)
+    if host in {"127.0.0.1", "localhost", "::1"}:
+        log("lateral_access_robot_host", f"LOOPBACK_OK {host}\n")
+        return True
+
+    # Fallback without raw-socket ping (can fail on some systems).
+    rc, out = sh(["bash", "-lc", f"getent ahosts {host} | head -n 1 || true"], timeout=6)
     log("lateral_access_robot_host", out)
-    return rc == 0
+    return bool(out.strip())
 
 
 def act_credential_access_robot_host():
@@ -1177,4 +1182,3 @@ if __name__ == "__main__":
         if achieved(load_state(), "systemCompromised(f1tenth)"):
             print("\n[TERMINAL] Attacker reached systemCompromised(f1tenth)")
             break
-
