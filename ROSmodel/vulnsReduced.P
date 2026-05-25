@@ -1,10 +1,5 @@
 /******************************************************
  * vulns.P
- *
- * FACTS ONLY
- * - concrete ROS instance
- * - concrete retained exploit families
- * - single final goal
  ******************************************************/
 
 % ====================================================
@@ -15,6 +10,8 @@ system(f1tenth).
 rosApplication(f1tenth).
 
 attackGoal(systemCompromised(f1tenth)).
+% attackGoal(lateralAccess(robot_host)).
+% attackGoal(configurationIntegrityLoss(bridge)).
 
 % ====================================================
 % B) Nodes
@@ -65,9 +62,17 @@ ddsSecurityDisabled(rviz).
 
 rosTopic('/scan').
 rosTopic('/drive').
+% Attacker created exfiltration channel — modelled as a candidate
+% topic the attacker can publish stolen data to. Monitor flags any
+% publisher on this topic. The attackerCreatedTopic fact restricts
+% the exfiltrateChannel rule to ONLY this topic (so the rule does
+% not spuriously match legitimate /scan, /drive, /odom).
+rosTopic('/attacker_exfil').
+attackerCreatedTopic('/attacker_exfil').
 
 topicBelongsToSystem('/scan',f1tenth).
 topicBelongsToSystem('/drive',f1tenth).
+topicBelongsToSystem('/attacker_exfil',f1tenth).
 
 sensorTopic('/scan').
 controlTopic('/drive').
@@ -130,3 +135,27 @@ vulProperty('GHSA-5545-2q6w-2gh6',remoteExploit,dos).
 handlesTLS(f1tenth_bridge).
 vulExists('crypto_infoleak_family',f1tenth_bridge).
 vulProperty('crypto_infoleak_family',remoteExploit,infoLeak).
+
+% ====================================================
+% J) Additional topic /odom for cross-topic correlation
+% ====================================================
+
+rosTopic('/odom').
+topicBelongsToSystem('/odom',f1tenth).
+sensitiveTopic('/odom').
+
+topicPublisher('/odom',bridge).
+allowedPublisher('/odom',bridge).
+pubType(bridge,'/odom','nav_msgs/msg/Odometry').
+
+topicType('/odom','nav_msgs/msg/Odometry').
+
+% ====================================================
+% K) map_server parameter service
+% (needed for parameterTamper(map_server), which feeds
+% lifecycleHijack(map_server))
+% ====================================================
+
+serviceServer('/map_server/set_parameters',map_server).
+serviceType('/map_server/set_parameters','rcl_interfaces/srv/SetParameters').
+parameterService('/map_server/set_parameters').
