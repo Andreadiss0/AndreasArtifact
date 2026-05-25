@@ -1,10 +1,5 @@
 /******************************************************
- * RosRULEScopy.P
- *
- * RULES ONLY
- * - generic rules
- * - no hardcoded case-study names
- * - no facts / no goals
+ * RosRULEScopy.P — generic rules only (no facts/goals).
  ******************************************************/
 
 :- dynamic primitive/1.
@@ -47,7 +42,7 @@ primitive(lifecycleService(_serviceName)).
 primitive(netAccess(_node,_proto,_port)).
 primitive(ddsSecurityDisabled(_node)).
 
-% ---- Realistic attacker foothold facts ----
+% ---- Attacker foothold facts ----
 primitive(attackerEntryPoint(_host)).
 primitive(hostReachable(_srcHost,_dstHost)).
 primitive(hostRunsRos(_host)).
@@ -55,7 +50,7 @@ primitive(hostStoresRosCredentials(_host)).
 primitive(hostHasNetAdmin(_host)).
 primitive(nodeHostedOn(_node,_host)).
 
-% ---- Optional code-path facts (kept for completeness) ----
+% ---- Optional code-path facts ----
 primitive(programPathDisclosed(_program)).
 primitive(programFileWritable(_program)).
 
@@ -63,11 +58,14 @@ primitive(programFileWritable(_program)).
 primitive(topicBelongsToSystem(_topic,_sys)).
 primitive(nodeAffectsSystem(_node,_sys)).
 
-% ---- Vulnerability / software info ----
+% ---- Vulnerability info ----
 primitive(vulExists(_cve,_program)).
 primitive(vulProperty(_cve,_vector,_effect)).
 primitive(processesArray(_program,_topic)).
 primitive(handlesTLS(_program)).
+
+% ---- Attacker-created covert channel topics ----
+primitive(attackerCreatedTopic(_topic)).
 
 % ====================================================
 % DERIVED PREDICATES
@@ -92,7 +90,7 @@ derived(attackerCanNetAdmin(_host)).
 derived(graphDiscovery(_node)).
 derived(targetNodeSelected(_node)).
 
-% ---- Executable attacker operations from graph access ----
+% ---- Executable attacker operations ----
 derived(topicRead(_topic)).
 derived(topicWrite(_topic)).
 derived(topicFlood(_topic)).
@@ -113,6 +111,26 @@ derived(parameterTamper(_node)).
 derived(lifecycleAbuse(_node)).
 derived(cryptoInfoLeak(_topic)).
 derived(arrayDosExploit(_node,_topic)).
+
+% ---- Second-stage escalation attacks ----
+derived(mitmInjection(_topic)).
+derived(gradualDrift(_topic)).
+derived(stalePublish(_topic)).
+derived(crossTopicCorrelation(_sys)).
+derived(reliabilityFlip(_topic)).
+derived(lifecycleHijack(_node)).
+
+% ---- Exfiltration via covert channel ----
+derived(exfiltrateChannel(_topic)).
+
+% ---- Observable EFFECT predicates (monitor-detected) ----
+derived(drive_DoS(_sys)).
+derived(command_unsafe(_sys)).
+derived(scan_corrupted(_sys)).
+derived(scan_unreliable(_sys)).
+derived(map_server_down(_sys)).
+derived(bridge_misconfigured(_sys)).
+derived(data_leaked(_sys)).
 
 % ---- Direct security consequences ----
 derived(commandIntegrityLoss(_topic)).
@@ -209,13 +227,6 @@ interaction_rule(
   rule_desc('Attacker can join ROS graph as an authorized participant',1)).
 
 interaction_rule(
-  (attackerCanJoinRosGraph(Host) :-
-     attackerOnRosNetwork(Host),
-     rtpsReachableNode(Node),
-     ddsSecurityDisabled(Node)),
-  rule_desc('Attacker can join ROS graph when DDS security is disabled',1)).
-
-interaction_rule(
   (attackerCanNetAdmin(Host) :-
      lateralAccess(Host),
      hostHasNetAdmin(Host)),
@@ -234,7 +245,7 @@ interaction_rule(
   rule_desc('Attacker selects impactful target node',1)).
 
 % ----------------------------------------------------
-% C) Real attacker operations from exposed ROS graph
+% C) Attacker operations from exposed ROS graph
 % ----------------------------------------------------
 
 interaction_rule(
@@ -258,7 +269,8 @@ interaction_rule(
 
 interaction_rule(
   (topicFlood(Topic) :-
-     topicWrite(Topic)),
+     topicWrite(Topic),
+     controlTopic(Topic)),
   rule_desc('Attacker floods topic',1)).
 
 interaction_rule(
@@ -276,16 +288,15 @@ interaction_rule(
   rule_desc('Attacker exfiltrates topic data',1)).
 
 % ----------------------------------------------------
-% D) Runtime sensor-channel abuse (non-intrusive)
+% D) Runtime sensor-channel abuse
 % ----------------------------------------------------
 
 interaction_rule(
   (maliciousTopicContent(Topic) :-
-     targetNodeSelected(Node),
-     nodePublishesToTopic(Node,Topic),
-     attackerCanJoinRosGraph(_Host),
-     sensorTopic(Topic)),
-  rule_desc('Authorized rogue participant tampers sensor topic content',1)).
+     topicWrite(Topic),
+     sensorTopic(Topic),
+     attackerCanJoinRosGraph(_Host)),
+  rule_desc('Rogue publisher tampers sensor topic content',1)).
 
 interaction_rule(
   (topicDrop(Topic) :-
@@ -477,17 +488,244 @@ interaction_rule(
      nodeAffectsSystem(Node,Sys)),
   rule_desc('System availability compromised by node DoS',1)).
 
+% ====================================================
+% Leaf -> EFFECT -> systemCompromised
+% ====================================================
+
+% Drive denial-of-service.
 interaction_rule(
-  (systemCompromised(Sys) :-
-     operationalCompromise(Sys)),
-  rule_desc('System compromised by operational loss',1)).
+  (drive_DoS(Sys) :-
+     topicFlood(Topic),
+     controlTopic(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Drive denial of service via topic flood',1)).
+
+% Unsafe command via sustained drift.
+interaction_rule(
+  (command_unsafe(Sys) :-
+     gradualDrift(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Unsafe command via gradual drift',1)).
+
+% Scan corrupted via malicious content / MITM / stale publish.
+interaction_rule(
+  (scan_corrupted(Sys) :-
+     maliciousTopicContent(Topic),
+     sensorTopic(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Scan corrupted via malicious content',1)).
 
 interaction_rule(
-  (systemCompromised(Sys) :-
-     confidentialityCompromise(Sys)),
-  rule_desc('System compromised by confidentiality loss',1)).
+  (scan_corrupted(Sys) :-
+     mitmInjection(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Scan corrupted via MITM injection',1)).
 
 interaction_rule(
-  (systemCompromised(Sys) :-
-     availabilityCompromise(Sys)),
-  rule_desc('System compromised by availability loss',1)).
+  (scan_corrupted(Sys) :-
+     stalePublish(Topic),
+     sensorTopic(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Scan corrupted via stale publish',1)).
+
+% Scan unreliable via QoS attacks.
+interaction_rule(
+  (scan_unreliable(Sys) :-
+     qosDegradation(Topic),
+     sensorTopic(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Scan unreliable via QoS degradation',1)).
+
+interaction_rule(
+  (scan_unreliable(Sys) :-
+     reliabilityFlip(Topic),
+     sensorTopic(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Scan unreliable via reliability flip',1)).
+
+% Scan unreliable via host-level net-admin (tc/iptables).
+interaction_rule(
+  (scan_unreliable(Sys) :-
+     topicDrop(Topic),
+     sensorTopic(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Scan unreliable via topic drop',1)).
+
+interaction_rule(
+  (scan_unreliable(Sys) :-
+     topicDelay(Topic),
+     sensorTopic(Topic),
+     topicBelongsToSystem(Topic,Sys)),
+  rule_desc('Scan unreliable via topic delay',1)).
+
+% Map server down via lifecycle / parameter tamper.
+interaction_rule(
+  (map_server_down(Sys) :-
+     lifecycleHijack(Node),
+     nodeAffectsSystem(Node,Sys)),
+  rule_desc('Map server down via lifecycle hijack',1)).
+
+interaction_rule(
+  (map_server_down(Sys) :-
+     lifecycleAbuse(Node),
+     nodeAffectsSystem(Node,Sys)),
+  rule_desc('Map server down via direct lifecycle abuse',1)).
+
+interaction_rule(
+  (map_server_down(Sys) :-
+     parameterTamper(map_server),
+     nodeAffectsSystem(map_server,Sys)),
+  rule_desc('Map server down via direct parameter tamper',1)).
+
+% Bridge misconfigured via parameter tamper.
+interaction_rule(
+  (bridge_misconfigured(Sys) :-
+     serviceCall('/bridge/set_parameters',bridge),
+     nodeAffectsSystem(bridge,Sys)),
+  rule_desc('Bridge misconfigured via parameter tamper',1)).
+
+% Data leaked via cross-topic correlation or exfil channel.
+interaction_rule(
+  (data_leaked(Sys) :-
+     crossTopicCorrelation(Sys)),
+  rule_desc('Data leaked via cross-topic correlation',1)).
+
+interaction_rule(
+  (data_leaked(Sys) :-
+     exfiltrateChannel(Topic),
+     rosTopic(Topic)),
+  rule_desc('Data leaked via attacker-created exfil topic',1)).
+
+% Effect -> systemCompromised.
+interaction_rule(
+  (systemCompromised(Sys) :- drive_DoS(Sys)),
+  rule_desc('System compromised via drive DoS',1)).
+
+interaction_rule(
+  (systemCompromised(Sys) :- command_unsafe(Sys)),
+  rule_desc('System compromised via unsafe command',1)).
+
+interaction_rule(
+  (systemCompromised(Sys) :- scan_corrupted(Sys)),
+  rule_desc('System compromised via scan corruption',1)).
+
+interaction_rule(
+  (systemCompromised(Sys) :- scan_unreliable(Sys)),
+  rule_desc('System compromised via scan unreliability',1)).
+
+interaction_rule(
+  (systemCompromised(Sys) :- map_server_down(Sys)),
+  rule_desc('System compromised via map server down',1)).
+
+interaction_rule(
+  (systemCompromised(Sys) :- bridge_misconfigured(Sys)),
+  rule_desc('System compromised via bridge misconfiguration',1)).
+
+interaction_rule(
+  (systemCompromised(Sys) :- data_leaked(Sys)),
+  rule_desc('System compromised via data leak',1)).
+
+% ----------------------------------------------------
+% H) Second-stage escalation attacks
+% ----------------------------------------------------
+
+% MITM injection on a topic.
+interaction_rule(
+  (mitmInjection(Topic) :-
+     mitmPossible(Topic),
+     attackerCanJoinRosGraph(_Host)),
+  rule_desc('Attacker runs MITM injection on topic',1)).
+
+% Gradual drift on a control topic.
+interaction_rule(
+  (gradualDrift(Topic) :-
+     topicWrite(Topic),
+     controlTopic(Topic)),
+  rule_desc('Attacker gradually drifts control values toward unsafe envelope',1)).
+
+% Stale-timestamped publication.
+interaction_rule(
+  (stalePublish(Topic) :-
+     topicWrite(Topic)),
+  rule_desc('Attacker publishes stale-timestamped messages',1)).
+
+% Cross-topic correlation on /scan + /odom.
+interaction_rule(
+  (crossTopicCorrelation(Sys) :-
+     topicRead('/scan'),
+     topicRead('/odom'),
+     sensitiveTopic('/scan'),
+     sensitiveTopic('/odom'),
+     topicBelongsToSystem('/scan',Sys),
+     topicBelongsToSystem('/odom',Sys)),
+  rule_desc('Attacker correlates multiple sensitive topics',1)).
+
+% Attacker-created exfil channel.
+interaction_rule(
+  (exfiltrateChannel(Topic) :-
+     topicRead(SrcTopic),
+     sensitiveTopic(SrcTopic),
+     attackerCanJoinRosGraph(_Host),
+     attackerCreatedTopic(Topic)),
+  rule_desc('Attacker creates new topic and dumps stolen data',1)).
+
+% QoS reliability flip on a sensor topic.
+interaction_rule(
+  (reliabilityFlip(Topic) :-
+     qosDegradation(Topic),
+     sensorTopic(Topic)),
+  rule_desc('Attacker oscillates QoS reliability to disrupt subscribers',1)).
+
+% Lifecycle hijack: disrupt + tamper + re-activate.
+interaction_rule(
+  (lifecycleHijack(Node) :-
+     lifecycleDisruption(Node),
+     parameterTamper(Node),
+     lifecycleService(Srv),
+     serviceServer(Srv,Node)),
+  rule_desc('Attacker hijacks lifecycle node with malicious config',1)).
+
+% ----------------------------------------------------
+% I) Escalation -> direct consequence
+% ----------------------------------------------------
+
+interaction_rule(
+  (commandIntegrityLoss(Topic) :-
+     mitmInjection(Topic),
+     controlTopic(Topic)),
+  rule_desc('Control integrity lost via MITM injection',1)).
+
+interaction_rule(
+  (sensorIntegrityLoss(Topic) :-
+     mitmInjection(Topic),
+     sensorTopic(Topic)),
+  rule_desc('Sensor integrity lost via MITM injection',1)).
+
+interaction_rule(
+  (commandIntegrityLoss(Topic) :-
+     gradualDrift(Topic),
+     controlTopic(Topic)),
+  rule_desc('Control integrity lost via gradual drift',1)).
+
+interaction_rule(
+  (sensorIntegrityLoss(Topic) :-
+     stalePublish(Topic),
+     sensorTopic(Topic)),
+  rule_desc('Sensor integrity lost via stale publish',1)).
+
+interaction_rule(
+  (confidentialityCompromise(Sys) :-
+     crossTopicCorrelation(Sys)),
+  rule_desc('Confidentiality compromised by cross-topic correlation',1)).
+
+interaction_rule(
+  (sensorAvailabilityLoss(Topic) :-
+     reliabilityFlip(Topic),
+     sensorTopic(Topic)),
+  rule_desc('Sensor availability lost via QoS reliability flip',1)).
+
+interaction_rule(
+  (operationalCompromise(Sys) :-
+     lifecycleHijack(Node),
+     nodeAffectsSystem(Node,Sys)),
+  rule_desc('System operation compromised by lifecycle hijack',1)).
