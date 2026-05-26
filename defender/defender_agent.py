@@ -327,24 +327,45 @@ def def_reactivate_map_server():
     return True
 
 
+# Shared 5 s cooldown so back-to-back drive alerts don't double-brake.
+_last_safe_drive_override_call_ts = 0.0
+
+
 def def_safe_drive_override():
-    """Clear command_unsafe: slam zero-velocity /drive at 100 Hz for 1 s."""
+    """Clear command_unsafe: slam zero-speed /drive at 100 Hz for 2 s in a
+    daemon thread so the defender's alert handler isn't blocked."""
+    global _last_safe_drive_override_call_ts
+    now = time.time()
+    if now - _last_safe_drive_override_call_ts < 5.0:
+        print(f"[DEFENDER] safe_drive_override: skipped "
+              f"(cooldown, {now - _last_safe_drive_override_call_ts:.1f}s < 5.0s)",
+              flush=True)
+        return True
+    _last_safe_drive_override_call_ts = now
+
     node = g_defender_node
     if node is None or node.drive_pub is None:
         print("[DEFENDER] safe_drive_override: drive_pub not initialised", flush=True)
         return False
-    msg = AckermannDriveStamped()
-    msg.drive.speed = 0.0
-    msg.drive.steering_angle = 0.0
-    end = time.time() + 1.0
-    count = 0
-    while time.time() < end:
-        node.drive_pub.publish(msg)
-        count += 1
-        time.sleep(0.01)
-    print(f"[DEFENDER] safe_drive_override: published {count} zero-velocity msgs",
-          flush=True)
-    return count > 0
+
+    def _spam_brake():
+        msg = AckermannDriveStamped()
+        msg.drive.speed = 0.0
+        msg.drive.steering_angle = 0.0
+        end = time.time() + 2.0
+        count = 0
+        while time.time() < end:
+            try:
+                node.drive_pub.publish(msg)
+            except Exception:
+                break
+            count += 1
+            time.sleep(0.01)
+        print(f"[DEFENDER] safe_drive_override: published {count} hold msgs over 2s",
+              flush=True)
+
+    threading.Thread(target=_spam_brake, name="safe_drive_override", daemon=True).start()
+    return True
 
 
 def def_rotate_credentials():
@@ -507,7 +528,10 @@ def revoke_attacker_predicates(defense_name):
     if not preds:
         return []
 
-    POLL_TIMEOUT = 2.5
+    # 0.5 s catches a live attacker's atomic state.json write (~5 ms)
+    # with margin for scheduling jitter; longer values just stall the
+    # alert handler when no attacker is running.
+    POLL_TIMEOUT = 0.5
     POLL_INTERVAL = 0.05
 
     deadline = time.time() + POLL_TIMEOUT
@@ -754,7 +778,12 @@ class DefenderNode(Node):
         if now - self._last_acted[var] < ALERT_COOLDOWN_SEC:
             return
         if self.state[var]:
-            return
+            # REQ_command_unsafe always re-runs the brake even if the bit
+            # was already set by a previous defense that didn't clear it.
+            if alert == "REQ_command_unsafe":
+                self.state[var] = False
+            else:
+                return
 
         timing = ALERT_TIMING.get(alert, "immediate")
         if timing == "post_hoc":
@@ -766,7 +795,6 @@ class DefenderNode(Node):
             _combined_log("DEFENDER", f"queued {alert} (post-hoc)")
             return
         _combined_log("DEFENDER", f"received {alert} (immediate)")
-
         self._handle_alert_inline(alert)
 
     def _handle_alert_inline(self, alert):
@@ -811,16 +839,24 @@ class DefenderNode(Node):
             except Exception as e:
                 self.get_logger().warn(f"safety override failed: {e}")
 
-        # Safety override: always brake on any drive-channel alert.
-        if alert in ("REQ_drive_DoS", "REQ_command_unsafe"):
-            try:
-                def_safe_drive_override()
-                _combined_log("DEFENDER",
-                    f"safety override on {alert}: "
-                    f"def_safe_drive_override (100 Hz zero-velocity to /drive for 1 s — car brakes)")
-                revoke_attacker_predicates("def_safe_drive_override")
-            except Exception as e:
-                self.get_logger().warn(f"drive safety override failed: {e}")
+        # Safety net: REQ_command_unsafe always brakes, even when the
+        # strategy's reliability dice rolls bad.
+        if alert == "REQ_command_unsafe":
+            now = time.time()
+            last = getattr(self, "_last_safe_drive_override_ts", 0.0)
+            if now - last < 5.0:
+                self.get_logger().info(
+                    f"safety net on {alert}: skipped (cooldown, {now-last:.1f}s < 5.0s)")
+            else:
+                self._last_safe_drive_override_ts = now
+                try:
+                    def_safe_drive_override()
+                    _combined_log("DEFENDER",
+                        f"safety net on {alert}: "
+                        f"def_safe_drive_override — car brakes")
+                    revoke_attacker_predicates("def_safe_drive_override")
+                except Exception as e:
+                    self.get_logger().warn(f"safety net failed: {e}")
 
     def _publish_turn_complete(self, action_taken=None):
         """Write turn-complete barrier file so the polling attacker advances."""
