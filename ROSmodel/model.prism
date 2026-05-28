@@ -1,30 +1,32 @@
 smg 
 player att
-attacker,[L_2_RULE63_SystemcompromisedviadriveDoS_2],
+attacker,[L_2_RULE65_SystemcompromisedviadriveDoS_2],
      [L_4_RULE48_Drivedenialofserviceviatopicflood_4],
-     [L_16_RULE10_AttackercanjoinROSgraphasanauthorizedparticipant_16],
-     [L_18_RULE8_AttackerobtainsROScredentialsfromreachedhost_18],
-     [L_39_RULE64_Systemcompromisedviaunsafecommand_39],
-     [L_41_RULE49_Unsafecommandviagradualdrift_41],
-     [L_44_RULE65_Systemcompromisedviascancorruption_44],
-     [L_46_RULE50_Scancorruptedviamaliciouscontent_46],
-     [L_67_RULE51_ScancorruptedviaMITMinjection_67],
-     [L_81_RULE52_Scancorruptedviastalepublish_81],
-     [L_84_RULE66_Systemcompromisedviascanunreliability_84],
-     [L_86_RULE53_ScanunreliableviaQoSdegradation_86],
-     [L_94_RULE54_Scanunreliableviareliabilityflip_94],
-     [L_97_RULE55_Scanunreliableviatopicdrop_97],
-     [L_101_RULE11_Attackerhashostprivilegefornetworkshaping_101],
-     [L_104_RULE56_Scanunreliableviatopicdelay_104],
-     [L_107_RULE67_Systemcompromisedviamapserverdown_107],
-     [L_109_RULE57_Mapserverdownvialifecyclehijack_109],
-     [L_137_RULE58_Mapserverdownviadirectlifecycleabuse_137],
-     [L_138_RULE59_Mapserverdownviadirectparametertamper_138],
-     [L_139_RULE68_Systemcompromisedviabridgemisconfiguration_139],
-     [L_141_RULE60_Bridgemisconfiguredviaparametertamper_141],
-     [L_148_RULE69_Systemcompromisedviadataleak_148],
-     [L_150_RULE61_Dataleakedviacross_topiccorrelation_150],
-     [L_167_RULE62_Dataleakedviaattacker_createdexfiltopic_167]
+     [L_15_RULE10_AttackercanjoinROSgraphasanauthorizedparticipant_15],
+     [L_17_RULE8_AttackerobtainsROScredentialsfromreachedhost_17],
+     [L_38_RULE49_DrivedenialofserviceviaarrayDoSexploit_38],
+     [L_45_RULE66_Systemcompromisedviaunsafecommand_45],
+     [L_47_RULE50_Unsafecommandviagradualdrift_47],
+     [L_50_RULE67_Systemcompromisedviascancorruption_50],
+     [L_52_RULE51_Scancorruptedviamaliciouscontent_52],
+     [L_72_RULE52_ScancorruptedviaMITMinjection_72],
+     [L_86_RULE53_Scancorruptedviastalepublish_86],
+     [L_89_RULE68_Systemcompromisedviascanunreliability_89],
+     [L_91_RULE54_ScanunreliableviaQoSdegradation_91],
+     [L_99_RULE55_Scanunreliableviareliabilityflip_99],
+     [L_102_RULE56_Scanunreliableviatopicdrop_102],
+     [L_106_RULE11_Attackerhashostprivilegefornetworkshaping_106],
+     [L_109_RULE57_Scanunreliableviatopicdelay_109],
+     [L_112_RULE69_Systemcompromisedviamapserverdown_112],
+     [L_114_RULE58_Mapserverdownvialifecyclehijack_114],
+     [L_141_RULE59_Mapserverdownviadirectlifecycleabuse_141],
+     [L_142_RULE60_Mapserverdownviadirectparametertamper_142],
+     [L_143_RULE70_Systemcompromisedviabridgemisconfiguration_143],
+     [L_145_RULE61_Bridgemisconfiguredviaparametertamper_145],
+     [L_152_RULE71_Systemcompromisedviadataleak_152],
+     [L_154_RULE62_Dataleakedviacross_topiccorrelation_154],
+     [L_171_RULE63_Dataleakedviaattacker_createdexfiltopic_171],
+     [L_177_RULE64_DataleakedviacryptoinfoleakCVE_177]
 endplayer
 
 
@@ -75,8 +77,8 @@ module defender
          (t=2) & (map_server_down_f1tenth_) -> 
 				0.95: (map_server_down_f1tenth_'=false) & (t' = 1) + 0.050000000000000044:  (t' = 1);
 	[def_safe_drive_override]   
-         (t=2) & (command_unsafe_f1tenth_) -> 
-				0.9: (command_unsafe_f1tenth_'=false) & (t' = 1) + 0.09999999999999998:  (t' = 1);
+         (t=2) & (command_unsafe_f1tenth_ | drive_DoS_f1tenth_) -> 
+				0.9: (command_unsafe_f1tenth_'=false) & (drive_DoS_f1tenth_'=false) & (t' = 1) + 0.09999999999999998:  (t' = 1);
 	[def_rotate_credentials]   
          (t=2) & (credentialAccess_robot_host_) -> 
 				0.9: (credentialAccess_robot_host_'=false) & (t' = 1) + 0.09999999999999998:  (t' = 1);
@@ -86,79 +88,85 @@ module defender
 endmodule
 
 module attacker
-	[L_2_RULE63_SystemcompromisedviadriveDoS_2]   
+	[L_2_RULE65_SystemcompromisedviadriveDoS_2]   
          (drive_DoS_f1tenth_) & !systemCompromised_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				1: (systemCompromised_f1tenth_' = true) & (t'=2);
+				1.0: (systemCompromised_f1tenth_' = true) & (t'=2) + 0.0: (t'=1) + 0.0: (t'=3);
 	[L_4_RULE48_Drivedenialofserviceviatopicflood_4]   
          (((((attackerCanJoinRosGraph_robot_host_))))) & !drive_DoS_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (drive_DoS_f1tenth_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
-	[L_16_RULE10_AttackercanjoinROSgraphasanauthorizedparticipant_16]   
+				0.95: (drive_DoS_f1tenth_' = true) & (t'=1) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_15_RULE10_AttackercanjoinROSgraphasanauthorizedparticipant_15]   
          (credentialAccess_robot_host_) & !attackerCanJoinRosGraph_robot_host_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				1: (attackerCanJoinRosGraph_robot_host_' = true) & (t'=2);
-	[L_18_RULE8_AttackerobtainsROScredentialsfromreachedhost_18]   
+				1.0: (attackerCanJoinRosGraph_robot_host_' = true) & (t'=2) + 0.0: (t'=1) + 0.0: (t'=3);
+	[L_17_RULE8_AttackerobtainsROScredentialsfromreachedhost_17]   
          !credentialAccess_robot_host_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (credentialAccess_robot_host_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
-	[L_39_RULE64_Systemcompromisedviaunsafecommand_39]   
+				0.5: (credentialAccess_robot_host_' = true) & (t'=2) + 0.3333333333333333: (t'=1) + 0.16666666666666666: (t'=3);
+	[L_38_RULE49_DrivedenialofserviceviaarrayDoSexploit_38]   
+         (((((attackerCanJoinRosGraph_robot_host_))))) & !drive_DoS_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
+				0.95: (drive_DoS_f1tenth_' = true) & (t'=1) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_45_RULE66_Systemcompromisedviaunsafecommand_45]   
          (command_unsafe_f1tenth_) & !systemCompromised_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				1: (systemCompromised_f1tenth_' = true) & (t'=2);
-	[L_41_RULE49_Unsafecommandviagradualdrift_41]   
+				1.0: (systemCompromised_f1tenth_' = true) & (t'=2) + 0.0: (t'=1) + 0.0: (t'=3);
+	[L_47_RULE50_Unsafecommandviagradualdrift_47]   
          (((((attackerCanJoinRosGraph_robot_host_))))) & !command_unsafe_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.65: (command_unsafe_f1tenth_' = true) & (t'=2) + 0.2333333333333333: (t'=1) + 0.11666666666666665: (t'=3);
-	[L_44_RULE65_Systemcompromisedviascancorruption_44]   
+				0.76: (command_unsafe_f1tenth_' = true) & (t'=2) + 0.16: (t'=1) + 0.08: (t'=3);
+	[L_50_RULE67_Systemcompromisedviascancorruption_50]   
          (scan_corrupted_f1tenth_) & !systemCompromised_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				1: (systemCompromised_f1tenth_' = true) & (t'=2);
-	[L_46_RULE50_Scancorruptedviamaliciouscontent_46]   
+				1.0: (systemCompromised_f1tenth_' = true) & (t'=1) + 0.0: (t'=1) + 0.0: (t'=3);
+	[L_52_RULE51_Scancorruptedviamaliciouscontent_52]   
          (((attackerCanJoinRosGraph_robot_host_) & (((attackerCanJoinRosGraph_robot_host_))))) & !scan_corrupted_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (scan_corrupted_f1tenth_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
-	[L_67_RULE51_ScancorruptedviaMITMinjection_67]   
+				0.95: (scan_corrupted_f1tenth_' = true) & (t'=2) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_72_RULE52_ScancorruptedviaMITMinjection_72]   
          (((attackerCanJoinRosGraph_robot_host_) & (((((attackerCanJoinRosGraph_robot_host_))))))) & !scan_corrupted_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.55: (scan_corrupted_f1tenth_' = true) & (t'=2) + 0.3: (t'=1) + 0.15: (t'=3);
-	[L_81_RULE52_Scancorruptedviastalepublish_81]   
+				0.88: (scan_corrupted_f1tenth_' = true) & (t'=1) + 0.08: (t'=1) + 0.04: (t'=3);
+	[L_86_RULE53_Scancorruptedviastalepublish_86]   
          (((((attackerCanJoinRosGraph_robot_host_))))) & !scan_corrupted_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.55: (scan_corrupted_f1tenth_' = true) & (t'=2) + 0.3: (t'=1) + 0.15: (t'=3);
-	[L_84_RULE66_Systemcompromisedviascanunreliability_84]   
+				0.95: (scan_corrupted_f1tenth_' = true) & (t'=1) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_89_RULE68_Systemcompromisedviascanunreliability_89]   
          (scan_unreliable_f1tenth_) & !systemCompromised_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				1: (systemCompromised_f1tenth_' = true) & (t'=2);
-	[L_86_RULE53_ScanunreliableviaQoSdegradation_86]   
+				1.0: (systemCompromised_f1tenth_' = true) & (t'=2) + 0.0: (t'=1) + 0.0: (t'=3);
+	[L_91_RULE54_ScanunreliableviaQoSdegradation_91]   
          (((attackerCanJoinRosGraph_robot_host_))) & !scan_unreliable_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (scan_unreliable_f1tenth_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
-	[L_94_RULE54_Scanunreliableviareliabilityflip_94]   
+				0.95: (scan_unreliable_f1tenth_' = true) & (t'=1) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_99_RULE55_Scanunreliableviareliabilityflip_99]   
          (((((attackerCanJoinRosGraph_robot_host_))))) & !scan_unreliable_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.5: (scan_unreliable_f1tenth_' = true) & (t'=2) + 0.3333333333333333: (t'=1) + 0.16666666666666666: (t'=3);
-	[L_97_RULE55_Scanunreliableviatopicdrop_97]   
+				0.95: (scan_unreliable_f1tenth_' = true) & (t'=1) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_102_RULE56_Scanunreliableviatopicdrop_102]   
          (((attackerCanNetAdmin_robot_host_))) & !scan_unreliable_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.7: (scan_unreliable_f1tenth_' = true) & (t'=2) + 0.20000000000000004: (t'=1) + 0.10000000000000002: (t'=3);
-	[L_101_RULE11_Attackerhashostprivilegefornetworkshaping_101]   
+				0.95: (scan_unreliable_f1tenth_' = true) & (t'=1) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_106_RULE11_Attackerhashostprivilegefornetworkshaping_106]   
          !attackerCanNetAdmin_robot_host_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.65: (attackerCanNetAdmin_robot_host_' = true) & (t'=2) + 0.2333333333333333: (t'=1) + 0.11666666666666665: (t'=3);
-	[L_104_RULE56_Scanunreliableviatopicdelay_104]   
+				1.0: (attackerCanNetAdmin_robot_host_' = true) & (t'=2) + 0.0: (t'=1) + 0.0: (t'=3);
+	[L_109_RULE57_Scanunreliableviatopicdelay_109]   
          (((attackerCanNetAdmin_robot_host_))) & !scan_unreliable_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.7: (scan_unreliable_f1tenth_' = true) & (t'=2) + 0.20000000000000004: (t'=1) + 0.10000000000000002: (t'=3);
-	[L_107_RULE67_Systemcompromisedviamapserverdown_107]   
+				0.95: (scan_unreliable_f1tenth_' = true) & (t'=2) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_112_RULE69_Systemcompromisedviamapserverdown_112]   
          (map_server_down_f1tenth_) & !systemCompromised_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				1: (systemCompromised_f1tenth_' = true) & (t'=2);
-	[L_109_RULE57_Mapserverdownvialifecyclehijack_109]   
-         (((((((((attackerCanJoinRosGraph_robot_host_))))))) & (((((attackerCanJoinRosGraph_robot_host_))))))) & !map_server_down_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.5: (map_server_down_f1tenth_' = true) & (t'=2) + 0.3333333333333333: (t'=1) + 0.16666666666666666: (t'=3);
-	[L_137_RULE58_Mapserverdownviadirectlifecycleabuse_137]   
+				1.0: (systemCompromised_f1tenth_' = true) & (t'=1) + 0.0: (t'=1) + 0.0: (t'=3);
+	[L_114_RULE58_Mapserverdownvialifecyclehijack_114]   
+         (((((((attackerCanJoinRosGraph_robot_host_))))) & (((((((attackerCanJoinRosGraph_robot_host_))))))))) & !map_server_down_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
+				0.65: (map_server_down_f1tenth_' = true) & (t'=2) + 0.2333333333333333: (t'=1) + 0.11666666666666665: (t'=3);
+	[L_141_RULE59_Mapserverdownviadirectlifecycleabuse_141]   
          (((((attackerCanJoinRosGraph_robot_host_))))) & !map_server_down_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (map_server_down_f1tenth_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
-	[L_138_RULE59_Mapserverdownviadirectparametertamper_138]   
+				0.65: (map_server_down_f1tenth_' = true) & (t'=2) + 0.2333333333333333: (t'=1) + 0.11666666666666665: (t'=3);
+	[L_142_RULE60_Mapserverdownviadirectparametertamper_142]   
          (((((attackerCanJoinRosGraph_robot_host_))))) & !map_server_down_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (map_server_down_f1tenth_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
-	[L_139_RULE68_Systemcompromisedviabridgemisconfiguration_139]   
+				0.95: (map_server_down_f1tenth_' = true) & (t'=1) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_143_RULE70_Systemcompromisedviabridgemisconfiguration_143]   
          (bridge_misconfigured_f1tenth_) & !systemCompromised_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				1: (systemCompromised_f1tenth_' = true) & (t'=2);
-	[L_141_RULE60_Bridgemisconfiguredviaparametertamper_141]   
+				1.0: (systemCompromised_f1tenth_' = true) & (t'=2) + 0.0: (t'=1) + 0.0: (t'=3);
+	[L_145_RULE61_Bridgemisconfiguredviaparametertamper_145]   
          (((attackerCanJoinRosGraph_robot_host_))) & !bridge_misconfigured_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (bridge_misconfigured_f1tenth_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
-	[L_148_RULE69_Systemcompromisedviadataleak_148]   
+				0.95: (bridge_misconfigured_f1tenth_' = true) & (t'=2) + 0.03333333333333336: (t'=1) + 0.01666666666666668: (t'=3);
+	[L_152_RULE71_Systemcompromisedviadataleak_152]   
          (data_leaked_f1tenth_) & !systemCompromised_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				1: (systemCompromised_f1tenth_' = true) & (t'=2);
-	[L_150_RULE61_Dataleakedviacross_topiccorrelation_150]   
+				1.0: (systemCompromised_f1tenth_' = true) & (t'=2) + 0.0: (t'=1) + 0.0: (t'=3);
+	[L_154_RULE62_Dataleakedviacross_topiccorrelation_154]   
          (((((attackerCanJoinRosGraph_robot_host_))))) & !data_leaked_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (data_leaked_f1tenth_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
-	[L_167_RULE62_Dataleakedviaattacker_createdexfiltopic_167]   
+				0.63: (data_leaked_f1tenth_' = true) & (t'=2) + 0.24666666666666667: (t'=1) + 0.12333333333333334: (t'=3);
+	[L_171_RULE63_Dataleakedviaattacker_createdexfiltopic_171]   
          (((attackerCanJoinRosGraph_robot_host_) & (((attackerCanJoinRosGraph_robot_host_))))) & !data_leaked_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
-				0.85: (data_leaked_f1tenth_' = true) & (t'=2) + 0.10000000000000002: (t'=1) + 0.05000000000000001: (t'=3);
+				0.46: (data_leaked_f1tenth_' = true) & (t'=2) + 0.36000000000000004: (t'=1) + 0.18000000000000002: (t'=3);
+	[L_177_RULE64_DataleakedviacryptoinfoleakCVE_177]   
+         (((((((attackerCanJoinRosGraph_robot_host_))))))) & !data_leaked_f1tenth_ & !systemCompromised_f1tenth_ & (t=1) -> 
+				0.63: (data_leaked_f1tenth_' = true) & (t'=2) + 0.24666666666666667: (t'=1) + 0.12333333333333334: (t'=3);
 endmodule
